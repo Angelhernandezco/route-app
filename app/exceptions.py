@@ -1,35 +1,27 @@
-"""Excepciones de dominio. main.py las traduce a códigos HTTP."""
+"""Excepciones de dominio de la aplicación."""
 
 
-class AppError(Exception):
-    """Base de los errores controlados de la aplicación."""
-
-    status_code = 500
-
-    def __init__(self, message: str):
-        super().__init__(message)
-        self.message = message
+class GraphSearchError(Exception):
+    """Error base para cualquier problema de búsqueda sobre el grafo (HTTP 422 por defecto)."""
 
 
-class InvalidInputError(AppError):
-    """Datos de entrada o matriz inválidos."""
-
-    status_code = 400
+class InvalidGraphError(GraphSearchError):
+    """El grafo recibido no es válido (por ejemplo, está vacío)."""
 
 
-class OSRMError(AppError):
-    """OSRM no respondió correctamente."""
-
-    status_code = 502
+class NodeNotFoundError(GraphSearchError):
+    """Un nodo solicitado no existe en el grafo."""
 
 
-class NoRouteFoundError(AppError):
-    """No existe camino entre origen y destino con la matriz dada."""
-
-    status_code = 422
+class NegativeWeightError(GraphSearchError):
+    """El grafo contiene pesos negativos y el algoritmo no los admite."""
 
 
-class AlgorithmNotImplementedError(AppError):
-    """El algoritmo existe en la arquitectura pero aún no está implementado."""
+class NoRouteError(GraphSearchError):
+    """No existe ruta entre los nodos solicitados (HTTP 404)."""
 
-    status_code = 501
+    def __init__(self, inicio: str, objetivo: str) -> None:
+        super().__init__(
+            f"No existe una ruta entre estadoInicial ('{inicio}') "
+            f"y estadoFinal ('{objetivo}')."
+        )

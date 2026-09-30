@@ -1,48 +1,26 @@
-import logging
-import time
-
+"""Punto de entrada de la aplicación FastAPI."""
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app.exceptions import AppError
-from app.models import FeatureCollection, RouteRequest
-from app.services import get_route_finder, osrm_service
-from app.services.geojson_service import build_route_geojson
-
-logger = logging.getLogger("route-app")
+from app.controllers.route_controller import router
 
 app = FastAPI(
-    title="Route Algorithms Playground",
-    description="Prueba algoritmos de ruteo sobre una matriz de distancias de OSRM y devuelve GeoJSON.",
-    version="0.1.0",
+    title="Comparador de algoritmos de búsqueda de rutas",
+    description="BFS, DFS, Dijkstra y A* sobre un grafo dirigido ponderado.",
+    version="1.0.0",
 )
+app.include_router(router)
 
 
-@app.exception_handler(AppError)
-async def app_error_handler(_: Request, exc: AppError) -> JSONResponse:
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
+    """Devuelve errores 422 sin eco del valor recibido.
 
-
-@app.exception_handler(Exception)
-async def unexpected_error_handler(_: Request, exc: Exception) -> JSONResponse:
-    logger.exception("Error interno inesperado", exc_info=exc)
-    return JSONResponse(status_code=500, content={"detail": "Error interno inesperado."})
-
-
-@app.post(
-    "/route",
-    response_model=FeatureCollection,
-    summary="Calcula una ruta y la devuelve como GeoJSON",
-    responses={
-        422: {"description": "Entrada inválida o sin camino entre origen y destino"},
-        502: {"description": "OSRM no respondió correctamente"},
-    },
-)
-async def route(request: RouteRequest) -> dict:
-    finder = get_route_finder(request.algorithm)                           # 1. elegir algoritmo
-    matrix = await osrm_service.get_distance_matrix(request.coordinates)   # 2. matriz (Table)
-    start = time.perf_counter()
-    indices = finder(matrix)                                               # 3. ruta como índices
-    execution_time_ms = (time.perf_counter() - start) * 1000               #    (solo el algoritmo)
-    line = await osrm_service.get_route_geometry(request.coordinates, indices)  # 4. calles reales (Route)
-    return build_route_geojson(request.algorithm, indices, matrix, line, execution_time_ms)   # 5. GeoJSON
+    El handler por defecto incluye el campo ``input`` en cada error; si el valor es
+    NaN/Infinity, no es serializable a JSON y la respuesta terminaría en HTTP 500.
+    """
+    errores = [
+        {"loc": list(e["loc"]), "msg": e["msg"], "type": e["type"]} for e in exc.errors()
+    ]
+    return JSONResponse(status_code=422, content={"detail": errores})
